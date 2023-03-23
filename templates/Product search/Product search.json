@@ -1,0 +1,33 @@
+{
+	"name": "Daily_BalckOps_to_Coveo_ProductFeed_Trigger",
+	"properties": {
+		"description": "Delta load trigger for Product search in Coveo.",
+		"annotations": [],
+		"runtimeState": "Started",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "1 Delta Load - Push Data to Coveo - Main ADF Pipeline",
+					"type": "PipelineReference"
+				}
+			}
+		],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Day",
+				"interval": 1,
+				"startTime": "2022-12-10T00:00:00",
+				"timeZone": "AUS Eastern Standard Time",
+				"schedule": {
+					"minutes": [
+						0
+					],
+					"hours": [
+						4
+					]
+				}
+			}
+		}
+	}
+}
