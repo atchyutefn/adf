@@ -1,0 +1,1056 @@
+{
+	"name": "2 5 Delta_Availability",
+	"properties": {
+		"activities": [
+			{
+				"name": "Until_Availability_1",
+				"type": "Until",
+				"dependsOn": [
+					{
+						"activity": "Set until1_start",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set until1_end",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(int(variables('until1_start')), int(variables('until1_end')))",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Create S3 file container 1",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/files?useVirtualHostedStyleUrl=true",
+									"type": "Expression"
+								},
+								"method": "POST",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json",
+									"Accept": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Push data to S3 container 1",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Lookup 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "@activity('Create S3 file container 1').output.uploadURI",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"x-amz-server-side-encryption": "AES256",
+									"Content-Type": "application/octet-stream"
+								},
+								"body": {
+									"value": "@concat('{\"AddOrUpdate\": [',activity('Lookup 1').output.FirstRow.Jsonstring,']}')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Lookup 1",
+							"type": "Lookup",
+							"dependsOn": [
+								{
+									"activity": "Create S3 file container 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "DECLARE @json nvarchar(max);\nSELECT  @json = coalesce(@json + ','+JSONSTRING,JSONSTRING) FROM\n(   SELECT  Jsonstring FROM stg.coveopushdata_availability\n    where batchno=@{int(variables('until1_start'))}\n) a\nselect @json as Jsonstring",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "destination_BlackOps1",
+									"type": "DatasetReference"
+								}
+							}
+						},
+						{
+							"name": "Set Increment 1",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "SP_Update_Coveopushdata_Availability 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Push Container to Stream 1",
+									"dependencyConditions": [
+										"Succeeded",
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "until1_temp",
+								"value": {
+									"value": "@variables('until1_start')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "SP_Update_Coveopushdata_Availability 1",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Lookup 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[Update_CoveoPushData_Availability]",
+								"storedProcedureParameters": {
+									"AWSContainerFileID": {
+										"value": {
+											"value": "@activity('Create S3 file container 1').output.fileid",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"AWSUploadURI": {
+										"value": {
+											"value": "@activity('Create S3 file container 1').output.uploadURI",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BAtchNoStart": {
+										"value": {
+											"value": "@variables('until1_start')",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									},
+									"PipelineID": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "AzureSqlDatabase1",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Set Increment 11",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Set Increment 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "until1_start",
+								"value": {
+									"value": "@{add(int(variables('until1_temp')),1 )}",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Push Container to Stream 1",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Push data to S3 container 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/sources/@{pipeline().parameters.OrganizationID}-@{pipeline().parameters.SourceID}/stream/update?fileId=@{activity('Create S3 file container 1').output.fileid}",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"timeout": "7.00:00:00"
+				}
+			},
+			{
+				"name": "Availability Get max batchno",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "select max(batchno) max_batchno \nfrom stg.coveopushdata_availability",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "destination_BlackOps1",
+						"type": "DatasetReference"
+					}
+				}
+			},
+			{
+				"name": "Set temp",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Availability Get max batchno",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "temp",
+					"value": {
+						"value": "@{div(int(activity('Availability Get max batchno').output.firstRow.max_batchno),3)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set until1_start",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set temp",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "until1_start",
+					"value": "1"
+				}
+			},
+			{
+				"name": "Set until1_end",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set temp",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "until1_end",
+					"value": {
+						"value": "@variables('temp')",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set until2_start",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set temp",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "until2_start",
+					"value": {
+						"value": "@{add(int(variables('temp')),1)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set until2_end",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set temp",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "until2_end",
+					"value": {
+						"value": "@{mul(int(variables('temp')),2)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set unti3_start",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set temp",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "until3_start",
+					"value": {
+						"value": "@{add(mul(int(variables('temp')),2),1)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set until3_end",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set temp",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "until3_end",
+					"value": {
+						"value": "@{activity('Availability Get max batchno').output.firstRow.max_batchno}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Until_Availability_2",
+				"type": "Until",
+				"dependsOn": [
+					{
+						"activity": "Set until2_start",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set until2_end",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(int(variables('until2_start')), int(variables('until2_end')))",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Create S3 file container 2",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/files?useVirtualHostedStyleUrl=true",
+									"type": "Expression"
+								},
+								"method": "POST",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json",
+									"Accept": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Push data to S3 container 2",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Lookup 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "@activity('Create S3 file container 2').output.uploadURI",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"x-amz-server-side-encryption": "AES256",
+									"Content-Type": "application/octet-stream"
+								},
+								"body": {
+									"value": "@concat('{\"AddOrUpdate\": [',activity('Lookup 2').output.FirstRow.Jsonstring,']}')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Lookup 2",
+							"type": "Lookup",
+							"dependsOn": [
+								{
+									"activity": "Create S3 file container 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "DECLARE @json nvarchar(max);\nSELECT  @json = coalesce(@json + ','+JSONSTRING,JSONSTRING) FROM\n(   SELECT  Jsonstring FROM stg.coveopushdata_availability\n    where batchno=@{int(variables('until2_start'))}\n) a\nselect @json as Jsonstring",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "destination_BlackOps1",
+									"type": "DatasetReference"
+								}
+							}
+						},
+						{
+							"name": "Set Increment 2",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "SP_Update_Coveopushdata_Availability 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Push Container to Stream 2",
+									"dependencyConditions": [
+										"Succeeded",
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "until2_temp",
+								"value": {
+									"value": "@variables('until2_start')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "SP_Update_Coveopushdata_Availability 2",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Lookup 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[Update_CoveoPushData_Availability]",
+								"storedProcedureParameters": {
+									"AWSContainerFileID": {
+										"value": {
+											"value": "@activity('Create S3 file container 2').output.fileid",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"AWSUploadURI": {
+										"value": {
+											"value": "@activity('Create S3 file container 2').output.uploadURI",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BAtchNoStart": {
+										"value": {
+											"value": "@variables('until2_start')",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									},
+									"PipelineID": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "AzureSqlDatabase1",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Set Increment 22",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Set Increment 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "until2_start",
+								"value": {
+									"value": "@{add(int(variables('until2_temp')),1 )}",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Push Container to Stream 2",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Push data to S3 container 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/sources/@{pipeline().parameters.OrganizationID}-@{pipeline().parameters.SourceID}/stream/update?fileId=@{activity('Create S3 file container 2').output.fileid}",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"timeout": "7.00:00:00"
+				}
+			},
+			{
+				"name": "Until_Availability_3",
+				"type": "Until",
+				"dependsOn": [
+					{
+						"activity": "Set unti3_start",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set until3_end",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(int(variables('until3_start')), int(variables('until3_end')))",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Create S3 file container 3",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/files?useVirtualHostedStyleUrl=true",
+									"type": "Expression"
+								},
+								"method": "POST",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json",
+									"Accept": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Push data to S3 container 3",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Lookup 3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "@activity('Create S3 file container 3').output.uploadURI",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"x-amz-server-side-encryption": "AES256",
+									"Content-Type": "application/octet-stream"
+								},
+								"body": {
+									"value": "@concat('{\"AddOrUpdate\": [',activity('Lookup 3').output.FirstRow.Jsonstring,']}')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Lookup 3",
+							"type": "Lookup",
+							"dependsOn": [
+								{
+									"activity": "Create S3 file container 3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "DECLARE @json nvarchar(max);\nSELECT  @json = coalesce(@json + ','+JSONSTRING,JSONSTRING) FROM\n(   SELECT  Jsonstring FROM stg.coveopushdata_availability\n    where batchno=@{int(variables('until3_start'))}\n) a\nselect @json as Jsonstring",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "destination_BlackOps1",
+									"type": "DatasetReference"
+								}
+							}
+						},
+						{
+							"name": "Set Increment 3",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "SP_Update_Coveopushdata_Availability 3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Push Container to Stream 3",
+									"dependencyConditions": [
+										"Succeeded",
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "until3_temp",
+								"value": {
+									"value": "@variables('until3_start')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "SP_Update_Coveopushdata_Availability 3",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Lookup 3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[Update_CoveoPushData_Availability]",
+								"storedProcedureParameters": {
+									"AWSContainerFileID": {
+										"value": {
+											"value": "@activity('Create S3 file container 3').output.fileid",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"AWSUploadURI": {
+										"value": {
+											"value": "@activity('Create S3 file container 3').output.uploaduri",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BAtchNoStart": {
+										"value": {
+											"value": "@variables('until3_start')",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									},
+									"PipelineID": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "AzureSqlDatabase1",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Set Increment 33",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Set Increment 3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "until3_start",
+								"value": {
+									"value": "@{add(int(variables('until3_temp')),1 )}",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Push Container to Stream 3",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Push data to S3 container 3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/sources/@{pipeline().parameters.OrganizationID}-@{pipeline().parameters.SourceID}/stream/update?fileId=@{activity('Create S3 file container 3').output.fileid}",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"timeout": "7.00:00:00"
+				}
+			}
+		],
+		"parameters": {
+			"OrganizationID": {
+				"type": "string"
+			},
+			"SourceID": {
+				"type": "string"
+			},
+			"BearerKey": {
+				"type": "string"
+			}
+		},
+		"variables": {
+			"empty_body": {
+				"type": "String",
+				"defaultValue": "{}"
+			},
+			"until1_start": {
+				"type": "String",
+				"defaultValue": "2"
+			},
+			"until1_end": {
+				"type": "String",
+				"defaultValue": "13"
+			},
+			"until2_start": {
+				"type": "String",
+				"defaultValue": "14"
+			},
+			"until2_end": {
+				"type": "String",
+				"defaultValue": "26"
+			},
+			"until1_temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"until2_temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"until3_start": {
+				"type": "String",
+				"defaultValue": "27"
+			},
+			"until3_end": {
+				"type": "String",
+				"defaultValue": "40"
+			},
+			"until3_temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"until4_start": {
+				"type": "String",
+				"defaultValue": "41"
+			},
+			"until4_temp": {
+				"type": "String"
+			},
+			"until4_end": {
+				"type": "String",
+				"defaultValue": "54"
+			},
+			"temp": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "BlackOps to Coveo Delta Load Pipelines"
+		},
+		"annotations": []
+	}
+}

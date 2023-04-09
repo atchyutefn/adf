@@ -1,0 +1,343 @@
+{
+	"name": "2 4 Error Records Reconciliation",
+	"properties": {
+		"activities": [
+			{
+				"name": "Lookup1",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "select batchno from stg.coveopushdata_wo_csp_cnt_web_log1 where errormessage like 'The%'\nunion\nselect batchno from stg.coveopushdata_wo_csp_cnt_web_log2 where errormessage like 'The%'\nunion\nselect batchno from stg.coveopushdata_wo_csp_cnt_web_log3 where errormessage like 'The%'\nunion\nselect batchno from stg.coveopushdata_wo_csp_cnt_web_log4 where errormessage like 'The%'\nunion\nselect batchno from stg.coveopushdata_wo_csp_cnt_web_log5 where errormessage like 'The%'\nunion\nselect batchno from stg.coveopushdata_wo_csp_cnt_web_log6 where errormessage like 'The%'",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "ds_blackops_prod",
+						"type": "DatasetReference",
+						"parameters": {
+							"tableName": "na",
+							"schemaName": "na"
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "ForEach1",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Lookup1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Lookup1').output.value",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Coveo Stream Chunk 1",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrgID}/sources/@{pipeline().parameters.OrgID}-@{pipeline().parameters.SrcID}/stream/@{pipeline().parameters.streamid}/chunk",
+									"type": "Expression"
+								},
+								"method": "POST",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BeaereKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json",
+									"Accept": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Coveo Stream Chunk Push 1",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Coveo Stream Chunk 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Lookup 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "@activity('Coveo Stream Chunk 1').output.uploadURI",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"x-amz-server-side-encryption": "AES256",
+									"Content-Type": "application/octet-stream"
+								},
+								"body": {
+									"value": "@concat('{\"AddOrUpdate\": [',activity('Lookup 1').output.FirstRow.Jsonstring,']}')",
+									"type": "Expression"
+								},
+								"httpRequestTimeout": "00:10:00"
+							}
+						},
+						{
+							"name": "Lookup 1",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "DECLARE @json nvarchar(max);\nSELECT  @json = coalesce(@json + ','+JSONSTRING,JSONSTRING) FROM\n(select Jsonstring from stg.coveopushdata_json_wo_csp_cnt\n      where row_no>=@{item().batchno} and \n            row_no<=@{add(item().batchno,49)}\n            and is_jsonstring_valid=1 \n) a\nselect @json as Jsonstring",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "destination_BlackOps",
+									"type": "DatasetReference"
+								}
+							}
+						},
+						{
+							"name": "Coveo Stream Chunk 2",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrgID}/sources/@{pipeline().parameters.OrgID}-@{pipeline().parameters.SrcID}/stream/@{pipeline().parameters.streamid}/chunk",
+									"type": "Expression"
+								},
+								"method": "POST",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BeaereKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json",
+									"Accept": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Coveo Stream Chunk Push 2",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Coveo Stream Chunk 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Lookup 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "@activity('Coveo Stream Chunk 2').output.uploadURI",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"x-amz-server-side-encryption": "AES256",
+									"Content-Type": "application/octet-stream"
+								},
+								"body": {
+									"value": "@concat('{\"AddOrUpdate\": [',activity('Lookup 2').output.FirstRow.Jsonstring,']}')",
+									"type": "Expression"
+								},
+								"httpRequestTimeout": "00:10:00"
+							}
+						},
+						{
+							"name": "Lookup 2",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "DECLARE @json nvarchar(max);\nSELECT  @json = coalesce(@json + ','+JSONSTRING,JSONSTRING) FROM\n(select Jsonstring from stg.coveopushdata_json_wo_csp_cnt\n      where row_no>=@{add(item().batchno,50)} and \n            row_no<=@{add(item().batchno,99)}\n            and is_jsonstring_valid=1 \n) a\nselect @json as Jsonstring",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "destination_BlackOps",
+									"type": "DatasetReference"
+								}
+							}
+						},
+						{
+							"name": "Wait1",
+							"type": "Wait",
+							"dependsOn": [
+								{
+									"activity": "Coveo Stream Chunk Push 1",
+									"dependencyConditions": [
+										"Succeeded",
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": 1
+							}
+						},
+						{
+							"name": "Wait2",
+							"type": "Wait",
+							"dependsOn": [
+								{
+									"activity": "Coveo Stream Chunk Push 2",
+									"dependencyConditions": [
+										"Succeeded",
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": 1
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Wait3",
+				"type": "Wait",
+				"dependsOn": [
+					{
+						"activity": "ForEach1",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"waitTimeInSeconds": 1
+				}
+			}
+		],
+		"parameters": {
+			"OrgID": {
+				"type": "string"
+			},
+			"SrcID": {
+				"type": "string"
+			},
+			"BeaereKey": {
+				"type": "string"
+			},
+			"streamid": {
+				"type": "string"
+			}
+		},
+		"variables": {
+			"First": {
+				"type": "String"
+			},
+			"Second": {
+				"type": "String"
+			},
+			"empty_body": {
+				"type": "String",
+				"defaultValue": "{}"
+			}
+		},
+		"folder": {
+			"name": "BlackOps to Coveo Full Load Pipelines"
+		},
+		"annotations": []
+	}
+}

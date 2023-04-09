@@ -1,0 +1,396 @@
+{
+	"name": "4 Delta_Partial_CNT",
+	"properties": {
+		"activities": [
+			{
+				"name": "Day0 Day1 cnt data preparation",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Copy logs to history",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_CNT_Partial_Delta]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Delta records - Add Update Delete",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Day0 Day1 cnt data preparation",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_CNT_Partial_Delta_Update_Add]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Maxpayload",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Delta records - Add Update Delete",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_JSON_cnt_Delta_MaxPayload]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Lookup group",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Maxpayload",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_cnt_lookup_delta]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Load Distributor",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "Lookup group",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "declare @max int\nset @max=(select max(batchno) from STG.CoveoPushData_Json_cnt_lookup_delta)\ntruncate table stg.cnt_loaddistributor_delta\ninsert into stg.cnt_loaddistributor_delta\nvalues(1,1,@max/3,GETDATE()),\n(2,(@max/3)+1,(@max/3)*2,GETDATE()),\n(3,((@max/3)*2)+1,@max,GETDATE())"
+						}
+					]
+				}
+			},
+			{
+				"name": "Execute Pipeline1",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "4 1 Delta_Partial_CNT_Push_1",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Execute Pipeline2",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "4 2 Delta_Partial_CNT_Push_2",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Execute Pipeline3",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "4 3 Delta_Partial_CNT_Push_3",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Copy logs to history",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "insert into stg.[CoveoPushData_cnt_stream_delta_history_log]\nselect * from stg.[CoveoPushData_cnt_stream1]\n\ntruncate table stg.[CoveoPushData_cnt_stream1]"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "Fetch error batches count",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Execute Pipeline1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Execute Pipeline2",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Execute Pipeline3",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "select count(*) as total from stg.[CoveoPushData_cnt_stream1]\nwhere Errormessage like '%service is too large%'\n",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "destination_BlackOps2",
+						"type": "DatasetReference"
+					}
+				}
+			},
+			{
+				"name": "If Condition1",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Fetch error batches count",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(activity('Fetch error batches count').output.firstRow.total,0)",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Execute Pipeline4",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "4 4 Delta_Partial_CNT_Error_Batches_Repushing",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"OrganizationID": {
+										"value": "@pipeline().parameters.OrganizationID",
+										"type": "Expression"
+									},
+									"SourceID": {
+										"value": "@pipeline().parameters.SourceID",
+										"type": "Expression"
+									},
+									"BearerKey": {
+										"value": "@pipeline().parameters.BearerKey",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					],
+					"ifTrueActivities": [
+						{
+							"name": "Wait1",
+							"type": "Wait",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": 1
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"OrganizationID": {
+				"type": "string",
+				"defaultValue": "blackwoodsnonproduction18ywd51dd"
+			},
+			"SourceID": {
+				"type": "string",
+				"defaultValue": "wfprngzh3psutpsinc7po7sl4u"
+			},
+			"BearerKey": {
+				"type": "string",
+				"defaultValue": "xxe4ddf465-208c-4042-951f-6a4e4339fa46"
+			}
+		},
+		"folder": {
+			"name": "BlackOps to Coveo Delta Load Pipelines"
+		},
+		"annotations": []
+	}
+}

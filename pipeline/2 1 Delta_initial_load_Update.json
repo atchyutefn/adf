@@ -1,0 +1,748 @@
+{
+	"name": "2 1 Delta_initial_load_Update",
+	"properties": {
+		"activities": [
+			{
+				"name": "If Condition1",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Lookup1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@less(int(activity('Lookup1').output.firstRow.cnt),18)",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Update count",
+							"type": "Lookup",
+							"dependsOn": [
+								{
+									"activity": "Load Distributor",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "select * from stg.coveopushdata_initialload_loaddistributor_delta",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "destination_BlackOps1",
+									"type": "DatasetReference"
+								},
+								"firstRowOnly": false
+							}
+						},
+						{
+							"name": "Stream1 123",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Update count",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "2 1 2 Delta_initial_update_Push",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"start1": {
+										"value": "@{activity('Update count').output.value[0].Batch_start}",
+										"type": "Expression"
+									},
+									"end1": {
+										"value": "@{activity('Update count').output.value[0].Batch_end}",
+										"type": "Expression"
+									},
+									"start2": {
+										"value": "@{activity('Update count').output.value[1].Batch_start}",
+										"type": "Expression"
+									},
+									"end2": {
+										"value": "@{activity('Update count').output.value[1].Batch_end}",
+										"type": "Expression"
+									},
+									"start3": {
+										"value": "@{activity('Update count').output.value[2].Batch_start}",
+										"type": "Expression"
+									},
+									"end3": {
+										"value": "@{activity('Update count').output.value[2].Batch_end}",
+										"type": "Expression"
+									},
+									"OrganizationID": {
+										"value": "@pipeline().parameters.OrganizationID",
+										"type": "Expression"
+									},
+									"SourceID": {
+										"value": "@pipeline().parameters.SourceID",
+										"type": "Expression"
+									},
+									"BearerKey": {
+										"value": "@pipeline().parameters.BearerKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Load Distributor",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[coveopushdata_initialload_loaddistributor_delta]",
+								"storedProcedureParameters": {
+									"parallelstreams": {
+										"value": "18",
+										"type": "Int32"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "AzureSqlDatabase1",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Stream2 456",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Update count",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "2 1 2 Delta_initial_update_Push",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"start1": {
+										"value": "@{activity('Update count').output.value[3].Batch_start}",
+										"type": "Expression"
+									},
+									"end1": {
+										"value": "@{activity('Update count').output.value[3].Batch_end}",
+										"type": "Expression"
+									},
+									"start2": {
+										"value": "@{activity('Update count').output.value[4].Batch_start}",
+										"type": "Expression"
+									},
+									"end2": {
+										"value": "@{activity('Update count').output.value[4].Batch_end}",
+										"type": "Expression"
+									},
+									"start3": {
+										"value": "@{activity('Update count').output.value[5].Batch_start}",
+										"type": "Expression"
+									},
+									"end3": {
+										"value": "@{activity('Update count').output.value[5].Batch_end}",
+										"type": "Expression"
+									},
+									"OrganizationID": {
+										"value": "@pipeline().parameters.OrganizationID",
+										"type": "Expression"
+									},
+									"SourceID": {
+										"value": "@pipeline().parameters.SourceID",
+										"type": "Expression"
+									},
+									"BearerKey": {
+										"value": "@pipeline().parameters.BearerKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Stream3 789",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Update count",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "2 1 2 Delta_initial_update_Push",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"start1": {
+										"value": "@{activity('Update count').output.value[6].Batch_start}",
+										"type": "Expression"
+									},
+									"end1": {
+										"value": "@{activity('Update count').output.value[6].Batch_end}",
+										"type": "Expression"
+									},
+									"start2": {
+										"value": "@{activity('Update count').output.value[7].Batch_start}",
+										"type": "Expression"
+									},
+									"end2": {
+										"value": "@{activity('Update count').output.value[7].Batch_end}",
+										"type": "Expression"
+									},
+									"start3": {
+										"value": "@{activity('Update count').output.value[8].Batch_start}",
+										"type": "Expression"
+									},
+									"end3": {
+										"value": "@{activity('Update count').output.value[8].Batch_end}",
+										"type": "Expression"
+									},
+									"OrganizationID": {
+										"value": "@pipeline().parameters.OrganizationID",
+										"type": "Expression"
+									},
+									"SourceID": {
+										"value": "@pipeline().parameters.SourceID",
+										"type": "Expression"
+									},
+									"BearerKey": {
+										"value": "@pipeline().parameters.BearerKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Stream4 101112",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Update count",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "2 1 2 Delta_initial_update_Push",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"start1": {
+										"value": "@{activity('Update count').output.value[9].Batch_start}",
+										"type": "Expression"
+									},
+									"end1": {
+										"value": "@{activity('Update count').output.value[9].Batch_end}",
+										"type": "Expression"
+									},
+									"start2": {
+										"value": "@{activity('Update count').output.value[10].Batch_start}",
+										"type": "Expression"
+									},
+									"end2": {
+										"value": "@{activity('Update count').output.value[10].Batch_end}",
+										"type": "Expression"
+									},
+									"start3": {
+										"value": "@{activity('Update count').output.value[11].Batch_start}",
+										"type": "Expression"
+									},
+									"end3": {
+										"value": "@{activity('Update count').output.value[11].Batch_end}",
+										"type": "Expression"
+									},
+									"OrganizationID": {
+										"value": "@pipeline().parameters.OrganizationID",
+										"type": "Expression"
+									},
+									"SourceID": {
+										"value": "@pipeline().parameters.SourceID",
+										"type": "Expression"
+									},
+									"BearerKey": {
+										"value": "@pipeline().parameters.BearerKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Stream5 131415",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Update count",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "2 1 2 Delta_initial_update_Push",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"start1": {
+										"value": "@{activity('Update count').output.value[12].Batch_start}",
+										"type": "Expression"
+									},
+									"end1": {
+										"value": "@{activity('Update count').output.value[12].Batch_end}",
+										"type": "Expression"
+									},
+									"start2": {
+										"value": "@{activity('Update count').output.value[13].Batch_start}",
+										"type": "Expression"
+									},
+									"end2": {
+										"value": "@{activity('Update count').output.value[13].Batch_end}",
+										"type": "Expression"
+									},
+									"start3": {
+										"value": "@{activity('Update count').output.value[14].Batch_start}",
+										"type": "Expression"
+									},
+									"end3": {
+										"value": "@{activity('Update count').output.value[14].Batch_end}",
+										"type": "Expression"
+									},
+									"OrganizationID": {
+										"value": "@pipeline().parameters.OrganizationID",
+										"type": "Expression"
+									},
+									"SourceID": {
+										"value": "@pipeline().parameters.SourceID",
+										"type": "Expression"
+									},
+									"BearerKey": {
+										"value": "@pipeline().parameters.BearerKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Stream6 161718",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Update count",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "2 1 2 Delta_initial_update_Push",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"start1": {
+										"value": "@{activity('Update count').output.value[15].Batch_start}",
+										"type": "Expression"
+									},
+									"end1": {
+										"value": "@{activity('Update count').output.value[15].Batch_end}",
+										"type": "Expression"
+									},
+									"start2": {
+										"value": "@{activity('Update count').output.value[16].Batch_start}",
+										"type": "Expression"
+									},
+									"end2": {
+										"value": "@{activity('Update count').output.value[16].Batch_end}",
+										"type": "Expression"
+									},
+									"start3": {
+										"value": "@{activity('Update count').output.value[17].Batch_start}",
+										"type": "Expression"
+									},
+									"end3": {
+										"value": "@{activity('Update count').output.value[17].Batch_end}",
+										"type": "Expression"
+									},
+									"OrganizationID": {
+										"value": "@pipeline().parameters.OrganizationID",
+										"type": "Expression"
+									},
+									"SourceID": {
+										"value": "@pipeline().parameters.SourceID",
+										"type": "Expression"
+									},
+									"BearerKey": {
+										"value": "@pipeline().parameters.BearerKey",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					],
+					"ifTrueActivities": [
+						{
+							"name": "Lookup_cnt 1",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "DECLARE @json nvarchar(max);\nSELECT  @json = coalesce(@json + ','+JSONSTRING,JSONSTRING) FROM\n(select Jsonstring from stg.coveopushdata_json_wo_csp_cnt_delta_update\n) a\nselect @json as Jsonstring",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "destination_BlackOps1",
+									"type": "DatasetReference"
+								}
+							}
+						},
+						{
+							"name": "Create S3 File Container",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/files?useVirtualHostedStyleUrl=true",
+									"type": "Expression"
+								},
+								"method": "POST",
+								"headers": {
+									"Content-Type": "application/json",
+									"Accept": "application/json",
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									}
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Push Data To Container",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Lookup_cnt 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Create S3 File Container",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "@activity('Create S3 File Container').output.uploadURI",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"x-amz-server-side-encryption": "AES256",
+									"Content-Type": "application/octet-stream"
+								},
+								"body": {
+									"value": "@activity('Lookup_cnt 1').output.FirstRow.Jsonstring",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Push Container to Stream",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Push Data To Container",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/sources/@{pipeline().parameters.OrganizationID}-@{pipeline().parameters.SourceID}/stream/update?fileId=@{activity('Create S3 File Container').output.fileid}",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Intial Load woCspCnt Update Log",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Push Container to Stream",
+									"dependencyConditions": [
+										"Succeeded",
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[CoveoPushData_wo_csp_cnt_Delta_Update_log]",
+								"storedProcedureParameters": {
+									"AWSContainerFileID": {
+										"value": null,
+										"type": "String"
+									},
+									"AWSUploadURI": {
+										"value": {
+											"value": "@activity('Create S3 File Container').output.uploaduri",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BAtchNoStart": {
+										"value": "1",
+										"type": "Int32"
+									},
+									"PipelineID": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"ErrorMessage": {
+										"value": {
+											"value": "@activity('Push Container to Stream').Error?.Message",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "AzureSqlDatabase1",
+								"type": "LinkedServiceReference"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Lookup1",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "select count(*) cnt from stg.coveopushdata_json_wo_csp_cnt_delta_update",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "destination_BlackOps1",
+						"type": "DatasetReference"
+					}
+				}
+			}
+		],
+		"parameters": {
+			"OrganizationID": {
+				"type": "string"
+			},
+			"SourceID": {
+				"type": "string"
+			},
+			"BearerKey": {
+				"type": "string"
+			}
+		},
+		"variables": {
+			"Stream1": {
+				"type": "String",
+				"defaultValue": "45001"
+			},
+			"Stream1_Temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"Stream1_End": {
+				"type": "String",
+				"defaultValue": "60000"
+			},
+			"Stream2": {
+				"type": "String",
+				"defaultValue": "60001"
+			},
+			"Stream2_Temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"Stream2_End": {
+				"type": "String",
+				"defaultValue": "75000"
+			},
+			"Stream3": {
+				"type": "String",
+				"defaultValue": "75001"
+			},
+			"Stream3_Temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"Stream3_End": {
+				"type": "String",
+				"defaultValue": "90000"
+			},
+			"empty_body": {
+				"type": "String",
+				"defaultValue": "{}"
+			},
+			"Table_name": {
+				"type": "String",
+				"defaultValue": "stg.CoveoPushData_json_wo_csp_cnt_delta_update"
+			},
+			"Temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"Source": {
+				"type": "String",
+				"defaultValue": "xqzjpr66aahsdkjh6go4dycoca"
+			},
+			"id": {
+				"type": "String",
+				"defaultValue": "2"
+			},
+			"Stream4": {
+				"type": "String",
+				"defaultValue": "90001"
+			},
+			"Stream4_Temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"Stream4_End": {
+				"type": "String",
+				"defaultValue": "106420"
+			}
+		},
+		"folder": {
+			"name": "BlackOps to Coveo Delta Load Pipelines"
+		},
+		"annotations": []
+	}
+}

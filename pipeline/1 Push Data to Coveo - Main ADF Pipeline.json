@@ -1,0 +1,1084 @@
+{
+	"name": "1 Push Data to Coveo - Main ADF Pipeline",
+	"properties": {
+		"description": "This is the pipeline to trigger first for Full load.",
+		"activities": [
+			{
+				"name": "Step1-Load_CoveoPushData",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[Load_CoveoPushData]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Step2-Json_WO_CSP_CNT_BOPS",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Step1-Load_CoveoPushData",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_WO_CSP_CNT]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Step2-Json_Bops_Partial",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Step2-Json_WO_CSP_CNT_BOPS",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_Bops_Partial]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Initial Load Pipeline Call",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Step2-Json_WO_CSP_CNT_BOPS",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "3 BPart JSON Grouping",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Step1-Load_CoveoPushData_Availability",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 Initial Load - Coveo BWProducts Parallel_Chunks_v1_90",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@variables('Organization id')",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@variables('Source id')",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@variables('BearerKey')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Wait 60min after Initial load",
+				"description": "To prepare index at Coveo, Wait 60 minutes. This time depends on size of data pushing.",
+				"type": "Wait",
+				"dependsOn": [
+					{
+						"activity": "Initial Load Pipeline Call",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"waitTimeInSeconds": 5400
+				}
+			},
+			{
+				"name": "Step3-Json_Bops_Partial_MaxPayload",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Step2-Json_Bops_Partial",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[stg].[CoveoPushData_JSON_Bops_Max_Payload]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Bops data Push to Coveo",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Wait 60min after Initial load",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Bops Lookup Table Preparation",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "3 Coveo_Bops_partilal",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@variables('Organization id')",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@variables('Source id')",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@variables('BearerKey')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Bops Lookup Table Preparation",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Step3-Json_Bops_Partial_MaxPayload",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_Bops_lookup]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "CNT JSON Preparation 1",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Script2",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_CNT_Partial_1]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "CNT JSON Maxpayload 1",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "CNT JSON Preparation 1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[stg].[CoveoPushData_JSON_cnt_Max_Payload_1]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "SP CNT Lookup 1",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "CNT JSON Maxpayload 1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_cnt_lookup1]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Script2",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "Step2-Json_WO_CSP_CNT_BOPS",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "truncate table stg.cnt_loaddistributor"
+						}
+					]
+				}
+			},
+			{
+				"name": "CNT JSON Preparation 2",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Script2",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_CNT_Partial_2]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "CNT JSON Maxpayload 2",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "CNT JSON Preparation 2",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[stg].[CoveoPushData_JSON_cnt_Max_Payload_2]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "SP CNT Lookup 2",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "CNT JSON Maxpayload 2",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_cnt_lookup2]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Partial Push CNT 2",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "SP CNT Lookup 2",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Wait 60min after Initial load",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "3 Coveo_CNT_partial_2",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@variables('Organization id')",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@variables('Source id')",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@variables('BearerKey')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "CNT JSON Preparation 3",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Script2",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_CNT_Partial_3]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "CNT JSON Maxpayload 3",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "CNT JSON Preparation 3",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[stg].[CoveoPushData_JSON_cnt_Max_Payload_3]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "SP CNT Lookup 3",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "CNT JSON Maxpayload 3",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_cnt_lookup3]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Partial Push CNT 3",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "SP CNT Lookup 3",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Wait 60min after Initial load",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "3 Coveo_CNT_partial_3",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@variables('Organization id')",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@variables('Source id')",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@variables('BearerKey')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Partial Push CNT 1",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "SP CNT Lookup 1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Wait 60min after Initial load",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "3 Coveo_CNT_partial_1",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationId": {
+							"value": "@variables('Organization id')",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@variables('Source id')",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@variables('BearerKey')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "CNT JSON Preparation 4",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Script2",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_CNT_Partial_4]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "CNT JSON Maxpayload 4",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "CNT JSON Preparation 4",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[stg].[CoveoPushData_JSON_cnt_Max_Payload_4]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "SP CNT Lookup 4",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "CNT JSON Maxpayload 4",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_cnt_lookup4]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Partial Push CNT 4",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "SP CNT Lookup 4",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Wait 60min after Initial load",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "3 Coveo_CNT_partial_4",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@variables('Organization id')",
+							"type": "Expression"
+						},
+						"SoruceID": {
+							"value": "@variables('Source id')",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@variables('BearerKey')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "1 BPart Products Preparation",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_BPart_Lookup]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "1 BPart JSON preparation",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_BPart]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "2 BPart JSON MaxPayload Preparation",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "1 BPart JSON preparation",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "1 BPart Products Preparation",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_JSON_BPart_Max_Payload]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "3 BPart JSON Grouping",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "2 BPart JSON MaxPayload Preparation",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_BPart_lookup_group]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Step1-Load_CoveoPushData_Availability",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[Load_CoveoPushData_availability]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Error Mail Notification",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Initial Load Pipeline Call",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": "https://prod-14.southeastasia.logic.azure.com:443/workflows/b5dccf7903484ee1b6c772c3a8aa0f51/triggers/manual/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=uhVEhHPsZNiltHdyvFv5ZGDfRXHequxZ6hM7Dvt0QIw",
+					"method": "POST",
+					"headers": {
+						"Content-Type": "application/json"
+					},
+					"body": {
+						"value": "{\n    \"ADFName\":\"@{pipeline().DataFactory}\",\n    \"ErrorMessage\":\"@{activity('Initial Load Pipeline Call').Error.Message}\",\n    \"PipelineName\":\"@{pipeline().Pipeline}\"\n}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Error Mail Notification_CNT1",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Partial Push CNT 1",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": "https://prod-14.southeastasia.logic.azure.com:443/workflows/b5dccf7903484ee1b6c772c3a8aa0f51/triggers/manual/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=uhVEhHPsZNiltHdyvFv5ZGDfRXHequxZ6hM7Dvt0QIw",
+					"method": "POST",
+					"headers": {
+						"Content-Type": "application/json"
+					},
+					"body": {
+						"value": "{\n    \"ADFName\":\"@{pipeline().DataFactory}\",\n    \"ErrorMessage\":\"@{activity('Partial Push CNT 1').Error.Message}\",\n    \"PipelineName\":\"@{pipeline().Pipeline}\"\n}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Error Mail Notification_CNT 2",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Partial Push CNT 2",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": "https://prod-14.southeastasia.logic.azure.com:443/workflows/b5dccf7903484ee1b6c772c3a8aa0f51/triggers/manual/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=uhVEhHPsZNiltHdyvFv5ZGDfRXHequxZ6hM7Dvt0QIw",
+					"method": "POST",
+					"headers": {
+						"Content-Type": "application/json"
+					},
+					"body": {
+						"value": "{\n    \"ADFName\":\"@{pipeline().DataFactory}\",\n    \"ErrorMessage\":\"@{activity('Partial Push CNT 2').Error.Message}\",\n    \"PipelineName\":\"@{pipeline().Pipeline}\"\n}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Error Mail Notification_CNT 3",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Partial Push CNT 3",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": "https://prod-14.southeastasia.logic.azure.com:443/workflows/b5dccf7903484ee1b6c772c3a8aa0f51/triggers/manual/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=uhVEhHPsZNiltHdyvFv5ZGDfRXHequxZ6hM7Dvt0QIw",
+					"method": "POST",
+					"headers": {
+						"Content-Type": "application/json"
+					},
+					"body": {
+						"value": "{\n    \"ADFName\":\"@{pipeline().DataFactory}\",\n    \"ErrorMessage\":\"@{activity('Partial Push CNT 3').Error.Message}\",\n    \"PipelineName\":\"@{pipeline().Pipeline}\"\n}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Error Mail Notification_CNT 4",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Partial Push CNT 4",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": "https://prod-14.southeastasia.logic.azure.com:443/workflows/b5dccf7903484ee1b6c772c3a8aa0f51/triggers/manual/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=uhVEhHPsZNiltHdyvFv5ZGDfRXHequxZ6hM7Dvt0QIw",
+					"method": "POST",
+					"headers": {
+						"Content-Type": "application/json"
+					},
+					"body": {
+						"value": "{\n    \"ADFName\":\"@{pipeline().DataFactory}\",\n    \"ErrorMessage\":\"@{activity('Partial Push CNT 4').Error.Message}\",\n    \"PipelineName\":\"@{pipeline().Pipeline}\"\n}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Error Mail Notification_BOPS",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Bops data Push to Coveo",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": "https://prod-14.southeastasia.logic.azure.com:443/workflows/b5dccf7903484ee1b6c772c3a8aa0f51/triggers/manual/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=uhVEhHPsZNiltHdyvFv5ZGDfRXHequxZ6hM7Dvt0QIw",
+					"method": "POST",
+					"headers": {
+						"Content-Type": "application/json"
+					},
+					"body": {
+						"value": "{\n    \"ADFName\":\"@{pipeline().DataFactory}\",\n    \"ErrorMessage\":\"@{activity('Bops data Push to Coveo').Error.Message}\",\n    \"PipelineName\":\"@{pipeline().Pipeline}\"\n}",
+						"type": "Expression"
+					}
+				}
+			}
+		],
+		"variables": {
+			"Organization id": {
+				"type": "String",
+				"defaultValue": "blackwoodsproductiondb4f7vq2"
+			},
+			"Source id": {
+				"type": "String",
+				"defaultValue": "skmopt6atrldmbcplagqyg2kqa"
+			},
+			"empty_body": {
+				"type": "String",
+				"defaultValue": "{}"
+			},
+			"BearerKey": {
+				"type": "String",
+				"defaultValue": "xx1b9103ee-5ac4-4917-a945-66f5b26def8b"
+			}
+		},
+		"folder": {
+			"name": "BlackOps to Coveo Full Load Pipelines"
+		},
+		"annotations": []
+	}
+}

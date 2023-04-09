@@ -1,0 +1,1218 @@
+{
+	"name": "2 2 Availability_Intial_Load",
+	"properties": {
+		"activities": [
+			{
+				"name": "Until_Availability_1",
+				"type": "Until",
+				"dependsOn": [
+					{
+						"activity": "Set until1_start",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set until1_end",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(int(variables('until1_start')), int(variables('until1_end')))",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Coveo Stream Chunk 1",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/sources/@{pipeline().parameters.OrganizationID}-@{pipeline().parameters.SourceID}/stream/@{pipeline().parameters.StreamID}/chunk",
+									"type": "Expression"
+								},
+								"method": "POST",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json",
+									"Accept": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Coveo Stream Chunk Push 1",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Lookup 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "@activity('Coveo Stream Chunk 1').output.uploadURI",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"x-amz-server-side-encryption": "AES256",
+									"Content-Type": "application/octet-stream"
+								},
+								"body": {
+									"value": "@concat('{\"AddOrUpdate\": [',activity('Lookup 1').output.FirstRow.Jsonstring,']}')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Lookup 1",
+							"type": "Lookup",
+							"dependsOn": [
+								{
+									"activity": "Coveo Stream Chunk 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "SELECT  Jsonstring FROM stg.coveopushdata_availability\nwhere batchno=@{int(variables('until1_start'))}\n",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "destination_BlackOps",
+									"type": "DatasetReference"
+								}
+							}
+						},
+						{
+							"name": "Set Increment 1",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "SP_Update_Coveopushdata_Availability 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Coveo Stream Chunk Push 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "until1_temp",
+								"value": {
+									"value": "@variables('until1_start')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "SP_Update_Coveopushdata_Availability 1",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Lookup 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[Update_CoveoPushData_Availability]",
+								"storedProcedureParameters": {
+									"AWSContainerFileID": {
+										"value": {
+											"value": "@pipeline().parameters.fileID",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"AWSUploadURI": {
+										"value": {
+											"value": "@pipeline().parameters.StreamID",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BAtchNoStart": {
+										"value": {
+											"value": "@variables('until1_start')",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									},
+									"PipelineID": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "AzureSqlDatabase1",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Set Increment 11",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Set Increment 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "until1_start",
+								"value": {
+									"value": "@{add(int(variables('until1_temp')),1 )}",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"timeout": "7.00:00:00"
+				}
+			},
+			{
+				"name": "Until_Availability_3",
+				"type": "Until",
+				"dependsOn": [
+					{
+						"activity": "Set unti3_start",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set until3_end",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(int(variables('until3_start')), int(variables('until3_end')))",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Coveo Stream Chunk 3",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/sources/@{pipeline().parameters.OrganizationID}-@{pipeline().parameters.SourceID}/stream/@{pipeline().parameters.StreamID}/chunk",
+									"type": "Expression"
+								},
+								"method": "POST",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json",
+									"Accept": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Coveo Stream Chunk Push 3",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Lookup 3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "@activity('Coveo Stream Chunk 3').output.uploadURI",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"x-amz-server-side-encryption": "AES256",
+									"Content-Type": "application/octet-stream"
+								},
+								"body": {
+									"value": "@concat('{\"AddOrUpdate\": [',activity('Lookup 3').output.FirstRow.Jsonstring,']}')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Lookup 3",
+							"type": "Lookup",
+							"dependsOn": [
+								{
+									"activity": "Coveo Stream Chunk 3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "DECLARE @json nvarchar(max);\nSELECT  @json = coalesce(@json + ','+JSONSTRING,JSONSTRING) FROM\n(   SELECT  Jsonstring FROM stg.coveopushdata_availability\n    where batchno=@{int(variables('until3_start'))}\n) a\nselect @json as Jsonstring",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "destination_BlackOps",
+									"type": "DatasetReference"
+								}
+							}
+						},
+						{
+							"name": "Set Increment 3",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "SP_Update_Coveopushdata_Availability 3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Coveo Stream Chunk Push 3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "until3_temp",
+								"value": {
+									"value": "@variables('until3_start')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "SP_Update_Coveopushdata_Availability 3",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Lookup 3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[Update_CoveoPushData_Availability]",
+								"storedProcedureParameters": {
+									"AWSContainerFileID": {
+										"value": {
+											"value": "@pipeline().parameters.fileID",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"AWSUploadURI": {
+										"value": {
+											"value": "@pipeline().parameters.StreamID",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BAtchNoStart": {
+										"value": {
+											"value": "@variables('until3_start')",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									},
+									"PipelineID": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "AzureSqlDatabase1",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Set Increment 33",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Set Increment 3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "until3_start",
+								"value": {
+									"value": "@{add(int(variables('until3_temp')),1 )}",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"timeout": "7.00:00:00"
+				}
+			},
+			{
+				"name": "Until_Availability_2",
+				"type": "Until",
+				"dependsOn": [
+					{
+						"activity": "Set until2_start",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set until2_end",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(int(variables('until2_start')), int(variables('until2_end')))",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Coveo Stream Chunk 2",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/sources/@{pipeline().parameters.OrganizationID}-@{pipeline().parameters.SourceID}/stream/@{pipeline().parameters.StreamID}/chunk",
+									"type": "Expression"
+								},
+								"method": "POST",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json",
+									"Accept": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Coveo Stream Chunk Push 2",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Lookup 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "@activity('Coveo Stream Chunk 2').output.uploadURI",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"x-amz-server-side-encryption": "AES256",
+									"Content-Type": "application/octet-stream"
+								},
+								"body": {
+									"value": "@concat('{\"AddOrUpdate\": [',activity('Lookup 2').output.FirstRow.Jsonstring,']}')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Lookup 2",
+							"type": "Lookup",
+							"dependsOn": [
+								{
+									"activity": "Coveo Stream Chunk 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "DECLARE @json nvarchar(max);\nSELECT  @json = coalesce(@json + ','+JSONSTRING,JSONSTRING) FROM\n(   SELECT  Jsonstring FROM stg.coveopushdata_availability\n    where batchno=@{int(variables('until2_start'))}\n) a\nselect @json as Jsonstring",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "destination_BlackOps",
+									"type": "DatasetReference"
+								}
+							}
+						},
+						{
+							"name": "Set Increment 2",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "SP_Update_Coveopushdata_Availability 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Coveo Stream Chunk Push 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "until2_temp",
+								"value": {
+									"value": "@variables('until2_start')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "SP_Update_Coveopushdata_Availability 2",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Lookup 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[Update_CoveoPushData_Availability]",
+								"storedProcedureParameters": {
+									"AWSContainerFileID": {
+										"value": {
+											"value": "@pipeline().parameters.fileID",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"AWSUploadURI": {
+										"value": {
+											"value": "@pipeline().parameters.StreamID",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BAtchNoStart": {
+										"value": {
+											"value": "@variables('until2_start')",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									},
+									"PipelineID": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "AzureSqlDatabase1",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Set Increment 22",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Set Increment 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "until2_start",
+								"value": {
+									"value": "@{add(int(variables('until2_temp')),1 )}",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"timeout": "7.00:00:00"
+				}
+			},
+			{
+				"name": "Until_Availability_4",
+				"type": "Until",
+				"dependsOn": [
+					{
+						"activity": "Set until4_start",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set until4_end",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(int(variables('until4_start')), int(variables('until4_end')))",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Coveo Stream Chunk 4",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/sources/@{pipeline().parameters.OrganizationID}-@{pipeline().parameters.SourceID}/stream/@{pipeline().parameters.StreamID}/chunk",
+									"type": "Expression"
+								},
+								"method": "POST",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json",
+									"Accept": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Coveo Stream Chunk Push 4",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Lookup 4",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "@activity('Coveo Stream Chunk 4').output.uploadURI",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"x-amz-server-side-encryption": "AES256",
+									"Content-Type": "application/octet-stream"
+								},
+								"body": {
+									"value": "@concat('{\"AddOrUpdate\": [',activity('Lookup 4').output.FirstRow.Jsonstring,']}')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Lookup 4",
+							"type": "Lookup",
+							"dependsOn": [
+								{
+									"activity": "Coveo Stream Chunk 4",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "DECLARE @json nvarchar(max);\nSELECT  @json = coalesce(@json + ','+JSONSTRING,JSONSTRING) FROM\n(   SELECT  Jsonstring FROM stg.coveopushdata_availability\n    where batchno=@{int(variables('until4_start'))}\n) a\nselect @json as Jsonstring",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "destination_BlackOps",
+									"type": "DatasetReference"
+								}
+							}
+						},
+						{
+							"name": "Set Increment 4",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "SP_Update_Coveopushdata_Availability 4",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Coveo Stream Chunk Push 4",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "until4_temp",
+								"value": {
+									"value": "@variables('until4_start')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "SP_Update_Coveopushdata_Availability 4",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Lookup 4",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[Update_CoveoPushData_Availability]",
+								"storedProcedureParameters": {
+									"AWSContainerFileID": {
+										"value": {
+											"value": "@pipeline().parameters.fileID",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"AWSUploadURI": {
+										"value": {
+											"value": "@pipeline().parameters.StreamID",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BAtchNoStart": {
+										"value": {
+											"value": "@variables('until4_start')",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									},
+									"PipelineID": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "AzureSqlDatabase1",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Set Increment 44",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Set Increment 4",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "until4_start",
+								"value": {
+									"value": "@{add(int(variables('until4_temp')),1 )}",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"timeout": "7.00:00:00"
+				}
+			},
+			{
+				"name": "Availability Get max batchno",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "select max(batchno) max_batchno \nfrom stg.coveopushdata_availability",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "destination_BlackOps",
+						"type": "DatasetReference"
+					}
+				}
+			},
+			{
+				"name": "Set temp",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Availability Get max batchno",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "temp",
+					"value": {
+						"value": "@{div(int(activity('Availability Get max batchno').output.firstRow.max_batchno),4)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set until1_start",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set temp",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "until1_start",
+					"value": "1"
+				}
+			},
+			{
+				"name": "Set until1_end",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set temp",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "until1_end",
+					"value": {
+						"value": "@variables('temp')",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set until2_start",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set temp",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "until2_start",
+					"value": {
+						"value": "@{add(int(variables('temp')),1)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set until2_end",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set temp",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "until2_end",
+					"value": {
+						"value": "@{mul(int(variables('temp')),2)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set unti3_start",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set temp",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "until3_start",
+					"value": {
+						"value": "@{add(mul(int(variables('temp')),2),1)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set until3_end",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set temp",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "until3_end",
+					"value": {
+						"value": "@{mul(int(variables('temp')),3)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set until4_start",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set temp",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "until4_start",
+					"value": {
+						"value": "@{add(mul(int(variables('temp')),3),1)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set until4_end",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set temp",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "until4_end",
+					"value": {
+						"value": "@{activity('Availability Get max batchno').output.firstRow.max_batchno}",
+						"type": "Expression"
+					}
+				}
+			}
+		],
+		"parameters": {
+			"OrganizationID": {
+				"type": "string"
+			},
+			"SourceID": {
+				"type": "string"
+			},
+			"StreamID": {
+				"type": "string"
+			},
+			"fileID": {
+				"type": "string"
+			},
+			"BearerKey": {
+				"type": "string"
+			}
+		},
+		"variables": {
+			"empty_body": {
+				"type": "String",
+				"defaultValue": "{}"
+			},
+			"until1_start": {
+				"type": "String",
+				"defaultValue": "2"
+			},
+			"until1_end": {
+				"type": "String",
+				"defaultValue": "13"
+			},
+			"until2_start": {
+				"type": "String",
+				"defaultValue": "14"
+			},
+			"until2_end": {
+				"type": "String",
+				"defaultValue": "26"
+			},
+			"until1_temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"until2_temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"until3_start": {
+				"type": "String",
+				"defaultValue": "27"
+			},
+			"until3_end": {
+				"type": "String",
+				"defaultValue": "40"
+			},
+			"until3_temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"until4_start": {
+				"type": "String",
+				"defaultValue": "41"
+			},
+			"until4_temp": {
+				"type": "String"
+			},
+			"until4_end": {
+				"type": "String",
+				"defaultValue": "54"
+			},
+			"temp": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "BlackOps to Coveo Full Load Pipelines"
+		},
+		"annotations": []
+	}
+}

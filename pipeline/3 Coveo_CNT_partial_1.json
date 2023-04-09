@@ -1,0 +1,112 @@
+{
+	"name": "3 Coveo_CNT_partial_1",
+	"properties": {
+		"activities": [
+			{
+				"name": "CNT data Push to Coveo 1 1",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "3 Coveo_CNT_partilal_PUSH_1",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationId",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						},
+						"Table_name": "stg.CoveoPushData_json_cnt_lookup1",
+						"id": "1",
+						"StoredProcedureName": "[dbo].[Update_coveopushdata_json_cnt_stream1]"
+					}
+				}
+			},
+			{
+				"name": "CNT data Push to Coveo 1 2",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "3 Coveo_CNT_partilal_PUSH_2",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationId",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						},
+						"Table_name": "stg.CoveoPushData_json_cnt_lookup1",
+						"id": "1",
+						"StoredProcedureName": "[dbo].[Update_coveopushdata_json_cnt_stream1]"
+					}
+				}
+			},
+			{
+				"name": "CNT data Push to Coveo 1 3",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "3 Coveo_CNT_partilal_PUSH_3",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationId",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						},
+						"Table_name": "stg.CoveoPushData_json_cnt_lookup1",
+						"id": "1",
+						"StoredProcedureName": "[dbo].[Update_coveopushdata_json_cnt_stream1]"
+					}
+				}
+			}
+		],
+		"parameters": {
+			"OrganizationId": {
+				"type": "string"
+			},
+			"SourceID": {
+				"type": "string"
+			},
+			"BearerKey": {
+				"type": "string"
+			}
+		},
+		"folder": {
+			"name": "BlackOps to Coveo Full Load Pipelines"
+		},
+		"annotations": []
+	}
+}

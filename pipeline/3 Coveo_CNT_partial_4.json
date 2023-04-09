@@ -1,0 +1,112 @@
+{
+	"name": "3 Coveo_CNT_partial_4",
+	"properties": {
+		"activities": [
+			{
+				"name": "Lk4 1",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "3 Coveo_CNT_partilal_PUSH_1",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SoruceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						},
+						"Table_name": "stg.CoveoPushData_json_cnt_lookup4",
+						"id": "4",
+						"StoredProcedureName": "[dbo].[Update_coveopushdata_json_cnt_stream4]"
+					}
+				}
+			},
+			{
+				"name": "Lk4 3",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "3 Coveo_CNT_partilal_PUSH_3",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SoruceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						},
+						"Table_name": "stg.CoveoPushData_json_cnt_lookup4",
+						"id": "4",
+						"StoredProcedureName": "[dbo].[Update_coveopushdata_json_cnt_stream4]"
+					}
+				}
+			},
+			{
+				"name": "Lk4 2",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "3 Coveo_CNT_partilal_PUSH_2",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SoruceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						},
+						"Table_name": "stg.CoveoPushData_json_cnt_lookup4",
+						"id": "4",
+						"StoredProcedureName": "[dbo].[Update_coveopushdata_json_cnt_stream4]"
+					}
+				}
+			}
+		],
+		"parameters": {
+			"OrganizationID": {
+				"type": "string"
+			},
+			"SoruceID": {
+				"type": "string"
+			},
+			"BearerKey": {
+				"type": "string"
+			}
+		},
+		"folder": {
+			"name": "BlackOps to Coveo Full Load Pipelines"
+		},
+		"annotations": []
+	}
+}

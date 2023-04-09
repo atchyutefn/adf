@@ -1,0 +1,16 @@
+{
+	"name": "destination_BlackOps",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "AzureSqlDatabase1",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "WebHierarchy_Attributes"
+		}
+	}
+}

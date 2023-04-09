@@ -1,0 +1,948 @@
+{
+	"name": "1 Delta Load - Push Data to Coveo - Main ADF Pipeline",
+	"properties": {
+		"activities": [
+			{
+				"name": "Coveo Day1 and Day0 Preparation",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "CoveoPushData Preparation",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_WO_CSP_CNT_Delta]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Coveo Delta - Update",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Coveo Day1 and Day0 Preparation",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_WO_CSP_CNT_Delta_Update]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Coveo Delta - Delete",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Coveo Day1 and Day0 Preparation",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_WO_CSP_CNT_Delta_Delete]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Coveo Delta - Add",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Coveo Day1 and Day0 Preparation",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_WO_CSP_CNT_Delta_Add]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "CoveoPushData Preparation",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[Load_CoveoPushData]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "BPart Delta",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Grouping products Lookup",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 4 1 Delta_BPart_Add_Update",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@variables('OrganizationID')",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@variables('SourceID')",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@variables('BearerKey')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Delta CNT",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Wait6",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "4 Delta_Partial_CNT",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@variables('OrganizationID')",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@variables('SourceID')",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@variables('BearerKey')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Availability Intial Load 123",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Step1-Load_CoveoPushData_Availability",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 5 Delta_Availability",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@variables('OrganizationID')",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@variables('SourceID')",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@variables('BearerKey')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "If Condition1",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Update",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(int(activity('Update').output.firstRow.cnt),0)",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Delta Update Pipeline Call",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "2 1 Delta_initial_load_Update",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"OrganizationID": {
+										"value": "@variables('OrganizationID')",
+										"type": "Expression"
+									},
+									"SourceID": {
+										"value": "@variables('SourceID')",
+										"type": "Expression"
+									},
+									"BearerKey": {
+										"value": "@variables('BearerKey')",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Wait2",
+							"type": "Wait",
+							"dependsOn": [
+								{
+									"activity": "Delta Update Pipeline Call",
+									"dependencyConditions": [
+										"Succeeded",
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": 1
+							}
+						}
+					],
+					"ifTrueActivities": [
+						{
+							"name": "Wait1",
+							"type": "Wait",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": 1
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Update",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Coveo Delta - Lookup",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "select count(*) cnt from stg.coveopushdata_json_wo_csp_cnt_delta_update",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "destination_BlackOps1",
+						"type": "DatasetReference"
+					}
+				}
+			},
+			{
+				"name": "If Condition Delete",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Delete",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(int(activity('Delete').output.firstRow.cnt),0)",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Delta Delete Pipeline Call",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "2 2 Delta_initial_load_Delete",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"OrganizationID": {
+										"value": "@variables('OrganizationID')",
+										"type": "Expression"
+									},
+									"SourceID": {
+										"value": "@variables('SourceID')",
+										"type": "Expression"
+									},
+									"BearerKey": {
+										"value": "@variables('BearerKey')",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Wait3",
+							"type": "Wait",
+							"dependsOn": [
+								{
+									"activity": "Delta Delete Pipeline Call",
+									"dependencyConditions": [
+										"Succeeded",
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": 1
+							}
+						}
+					],
+					"ifTrueActivities": [
+						{
+							"name": "Wait1_copy1",
+							"type": "Wait",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": 1
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Delete",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Coveo Delta - Delete",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "select count(*) cnt from stg.coveopushdata_json_wo_csp_cnt_delta_delete",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "destination_BlackOps1",
+						"type": "DatasetReference"
+					}
+				}
+			},
+			{
+				"name": "Add",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Coveo Delta - Add",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "select count(*) cnt from stg.coveopushdata_json_wo_csp_cnt_delta_add",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "destination_BlackOps1",
+						"type": "DatasetReference"
+					}
+				}
+			},
+			{
+				"name": "If Condition Add",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Add",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(int(activity('add').output.firstRow.cnt),0)",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Delta Add Pipeline Call",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "2 3 Delta_initial_load_Add",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"OrganizationID": {
+										"value": "@variables('OrganizationID')",
+										"type": "Expression"
+									},
+									"SourceID": {
+										"value": "@variables('SourceID')",
+										"type": "Expression"
+									},
+									"BearerKey": {
+										"value": "@variables('BearerKey')",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					],
+					"ifTrueActivities": [
+						{
+							"name": "Wait1_copy1_copy1",
+							"type": "Wait",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": 1
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Delta BOPS",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Wait6",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "3 Delta_Partial_BOPS",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@variables('OrganizationID')",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@variables('SourceID')",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@variables('BearerKey')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Step1-Load_CoveoPushData_Availability",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[Load_CoveoPushData_availability]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Coveo Delta - Max Payload",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Coveo Delta - Update",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_JSON_WO_CSP_CNT_Delta_Max_Payload]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Coveo Delta - Lookup",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Coveo Delta - Max Payload",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_wo_csp_cnt_Delta_lookup]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Bpart Update Add New Records preparation",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "1 BPart JSON preparation",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_BPart_Delta_Add_Update_delete]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "1 BPart JSON preparation",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_BPart_Delta]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Delete Bpart Delta",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Bpart Update Add New Records preparation",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 4 2 Delta_Bpart_Delete",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@variables('OrganizationID')",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@variables('SourceID')",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@variables('BearerKey')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "maxpayload Calculation",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Bpart Update Add New Records preparation",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_JSON_BPart_Delta_Max_Payload]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Grouping products Lookup",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "maxpayload Calculation",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_BPart_Delta_lookup]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Wait4",
+				"type": "Wait",
+				"dependsOn": [
+					{
+						"activity": "Availability Intial Load 123",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"waitTimeInSeconds": 1
+				}
+			},
+			{
+				"name": "Wait5",
+				"type": "Wait",
+				"dependsOn": [
+					{
+						"activity": "Delta BOPS",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"waitTimeInSeconds": 1
+				}
+			},
+			{
+				"name": "Error Mail Notification",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Delete Bpart Delta",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": "https://prod-14.southeastasia.logic.azure.com:443/workflows/b5dccf7903484ee1b6c772c3a8aa0f51/triggers/manual/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=uhVEhHPsZNiltHdyvFv5ZGDfRXHequxZ6hM7Dvt0QIw",
+					"method": "POST",
+					"headers": {
+						"Content-Type": "application/json"
+					},
+					"body": {
+						"value": "{\n    \"ADFName\":\"@{pipeline().DataFactory}\",\n    \"ErrorMessage\":\"@{activity('Delete Bpart Delta').Error.Message}\",\n    \"PipelineName\":\"@{pipeline().Pipeline}\"\n}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Wait6",
+				"type": "Wait",
+				"dependsOn": [
+					{
+						"activity": "If Condition1",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "If Condition Delete",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "If Condition Add",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"waitTimeInSeconds": 600
+				}
+			},
+			{
+				"name": "Data Reconciliation",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Delta CNT",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "BPart Delta",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Wait4",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Wait5",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Delete Bpart Delta",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "5 BlackOps_Coveo_Data_Reconciliation",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true
+				}
+			}
+		],
+		"variables": {
+			"empty_body": {
+				"type": "String",
+				"defaultValue": "{}"
+			},
+			"OrganizationID": {
+				"type": "String",
+				"defaultValue": "blackwoodsproductiondb4f7vq2"
+			},
+			"SourceID": {
+				"type": "String",
+				"defaultValue": "skmopt6atrldmbcplagqyg2kqa"
+			},
+			"BearerKey": {
+				"type": "String",
+				"defaultValue": "xx1b9103ee-5ac4-4917-a945-66f5b26def8b"
+			}
+		},
+		"folder": {
+			"name": "BlackOps to Coveo Delta Load Pipelines"
+		},
+		"annotations": []
+	}
+}

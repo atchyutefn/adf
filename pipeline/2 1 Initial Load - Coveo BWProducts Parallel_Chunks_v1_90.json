@@ -1,0 +1,1714 @@
+{
+	"name": "2 1 Initial Load - Coveo BWProducts Parallel_Chunks_v1_90",
+	"properties": {
+		"activities": [
+			{
+				"name": "Coveo Stream Open Initial Load",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Truncate logs",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": {
+						"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/sources/@{pipeline().parameters.OrganizationID}-@{pipeline().parameters.SourceID}/stream/open\n",
+						"type": "Expression"
+					},
+					"method": "POST",
+					"headers": {
+						"Authorization": {
+							"value": "Bearer @{pipeline().parameters.BearerKey}",
+							"type": "Expression"
+						},
+						"Content-Type": "application/json",
+						"Accept": "application/json"
+					},
+					"body": {
+						"value": "@variables('empty_body')",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Lookup-1",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Coveo Stream Open Initial Load",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "DECLARE @json nvarchar(max);\nSELECT  @json = coalesce(@json + ','+JSONSTRING,JSONSTRING) \nFROM (      select Jsonstring from stg.coveopushdata_json_wo_csp_cnt\n            where row_no>=1 and \n                  row_no<=100\n                  and is_jsonstring_valid=1\n      ) a\nselect @json as Jsonstring",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "destination_BlackOps",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Coveo Push",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Lookup-1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": {
+						"value": "@activity('Coveo Stream Open Initial Load').output.uploadURI",
+						"type": "Expression"
+					},
+					"method": "PUT",
+					"headers": {
+						"x-amz-server-side-encryption": "AES256",
+						"Content-Type": "application/octet-stream"
+					},
+					"body": {
+						"value": "@concat('{\"AddOrUpdate\": [',activity('Lookup-1').output.firstRow.Jsonstring,\n']}')",
+						"type": "Expression"
+					},
+					"httpRequestTimeout": "00:10:00"
+				}
+			},
+			{
+				"name": "Product Intial Load 1",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "1",
+						"param2": "2",
+						"param3": "3",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log1]",
+						"param4": "4",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Load Distributor",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "SP_Update_Coveopushdata_json_wo_cnt_csp",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[coveopushdata_initialload_loaddistributor]",
+					"storedProcedureParameters": {
+						"parallelstreams": {
+							"value": "80",
+							"type": "Int32"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Product Intial Load 2",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "5",
+						"param2": "6",
+						"param3": "7",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log1]",
+						"param4": "8",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 3",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "9",
+						"param2": "10",
+						"param3": "11",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log1]",
+						"param4": "12",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 4",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "13",
+						"param2": "14",
+						"param3": "15",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log1]",
+						"param4": "16",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 5",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "17",
+						"param2": "18",
+						"param3": "19",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log2]",
+						"param4": "20",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 8",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "29",
+						"param2": "30",
+						"param3": "31",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log2]",
+						"param4": "32",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 7",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "25",
+						"param2": "26",
+						"param3": "27",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log2]",
+						"param4": "28",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 6",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "21",
+						"param2": "22",
+						"param3": "23",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log2]",
+						"param4": "24",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 12",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "45",
+						"param2": "46",
+						"param3": "47",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log3]",
+						"param4": "48",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 11",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "41",
+						"param2": "42",
+						"param3": "43",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log3]",
+						"param4": "44",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 10",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "37",
+						"param2": "38",
+						"param3": "39",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log3]",
+						"param4": "40",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 9",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "33",
+						"param2": "34",
+						"param3": "35",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log3]",
+						"param4": "36",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 15",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "57",
+						"param2": "58",
+						"param3": "59",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log4]",
+						"param4": "60",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 14",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "53",
+						"param2": "54",
+						"param3": "55",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log4]",
+						"param4": "56",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 13",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "49",
+						"param2": "50",
+						"param3": "51",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log4]",
+						"param4": "52",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 17",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "65",
+						"param2": "66",
+						"param3": "67",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log5]",
+						"param4": "68",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 16",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "61",
+						"param2": "62",
+						"param3": "63",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log4]",
+						"param4": "64",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 18",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "69",
+						"param2": "70",
+						"param3": "71",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log5]",
+						"param4": "72",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 19",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "73",
+						"param2": "74",
+						"param3": "75",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log5]",
+						"param4": "76",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Product Intial Load 20",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 1 2 Product_Intial_Load Chnunks",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"uploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"batchsize": {
+							"value": "@variables('batchSize')",
+							"type": "Expression"
+						},
+						"param1": "77",
+						"param2": "78",
+						"param3": "79",
+						"logStoredProcedure": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log5]",
+						"param4": "80",
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Wait2",
+				"type": "Wait",
+				"dependsOn": [
+					{
+						"activity": "Coveo Stream Close Initial Load_copy1",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"waitTimeInSeconds": 5
+				}
+			},
+			{
+				"name": "BPart Call",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 3 BPart_Product_Intial_Load",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"UploadURI": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						},
+						"Fileid": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Availability Intial Load 123",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load Distributor",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 2 Availability_Intial_Load",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrganizationID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SourceID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"StreamID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.streamid",
+							"type": "Expression"
+						},
+						"fileID": {
+							"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+							"type": "Expression"
+						},
+						"BearerKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Coveo Stream Close Initial Load_copy1",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Execute Pipeline1",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": {
+						"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/sources/@{pipeline().parameters.OrganizationID}-@{pipeline().parameters.SourceID}/stream/@{activity('Coveo Stream Open Initial Load').output.streamid}/close",
+						"type": "Expression"
+					},
+					"method": "POST",
+					"headers": {
+						"Authorization": {
+							"value": "Bearer @{pipeline().parameters.BearerKey}",
+							"type": "Expression"
+						}
+					},
+					"body": {
+						"value": "@variables('empty_body')",
+						"type": "Expression"
+					},
+					"httpRequestTimeout": "00:10:00"
+				}
+			},
+			{
+				"name": "Wait3",
+				"type": "Wait",
+				"dependsOn": [
+					{
+						"activity": "Product Intial Load 1",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 2",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 3",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 4",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 5",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 8",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 7",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 6",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 12",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 11",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 10",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 9",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 15",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 14",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 13",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 17",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 16",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 18",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 19",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Product Intial Load 20",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "BPart Call",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					},
+					{
+						"activity": "Availability Intial Load 123",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"waitTimeInSeconds": 1
+				}
+			},
+			{
+				"name": "Execute Pipeline1",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Wait3",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "2 4 Error Records Reconciliation",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"OrgID": {
+							"value": "@pipeline().parameters.OrganizationID",
+							"type": "Expression"
+						},
+						"SrcID": {
+							"value": "@pipeline().parameters.SourceID",
+							"type": "Expression"
+						},
+						"BeaereKey": {
+							"value": "@pipeline().parameters.BearerKey",
+							"type": "Expression"
+						},
+						"streamid": {
+							"value": "@{activity('Coveo Stream Open Initial Load').output.streamid}",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "SP_Update_Coveopushdata_json_wo_cnt_csp",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Coveo Push",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[Update_coveopushdata_json_wo_csp_cnt_web_log1]",
+					"storedProcedureParameters": {
+						"AWSContainerFileID": {
+							"value": {
+								"value": "@activity('Coveo Stream Open Initial Load').output.fileId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"AWSUploadURI": {
+							"value": {
+								"value": "@activity('Coveo Stream Open Initial Load').output.Uploaduri",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BAtchNoStart": {
+							"value": "1",
+							"type": "Int32"
+						},
+						"PipelineID": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ErrorMessage": {
+							"value": {
+								"value": "@activity('Coveo Push').Error?.message",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Copy logs",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "insert into stg.coveopushdata_wo_csp_cnt_web_log\nselect * from stg.coveopushdata_wo_csp_cnt_web_log1 \ninsert into stg.coveopushdata_wo_csp_cnt_web_log\nselect * from stg.CoveoPushData_wo_csp_cnt_web_log2\ninsert into stg.coveopushdata_wo_csp_cnt_web_log\nselect * from stg.CoveoPushData_wo_csp_cnt_web_log3\ninsert into stg.coveopushdata_wo_csp_cnt_web_log\nselect * from stg.CoveoPushData_wo_csp_cnt_web_log6\ninsert into stg.coveopushdata_wo_csp_cnt_web_log\nselect * from stg.CoveoPushData_wo_csp_cnt_web_log4\ninsert into stg.coveopushdata_wo_csp_cnt_web_log\nselect * from stg.CoveoPushData_wo_csp_cnt_web_log5"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "Truncate logs",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "Copy logs",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "truncate table stg.coveopushdata_wo_csp_cnt_web_log1\ntruncate table stg.coveopushdata_wo_csp_cnt_web_log2\ntruncate table stg.coveopushdata_wo_csp_cnt_web_log3\ntruncate table stg.coveopushdata_wo_csp_cnt_web_log4\ntruncate table stg.coveopushdata_wo_csp_cnt_web_log5\ntruncate table stg.coveopushdata_wo_csp_cnt_web_log6"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			}
+		],
+		"parameters": {
+			"OrganizationID": {
+				"type": "string"
+			},
+			"SourceID": {
+				"type": "string"
+			},
+			"BearerKey": {
+				"type": "string"
+			}
+		},
+		"variables": {
+			"Availability_cur_cnt": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"empty_body": {
+				"type": "String",
+				"defaultValue": "{}"
+			},
+			"availability_max_cnt": {
+				"type": "String",
+				"defaultValue": "5"
+			},
+			"temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"until1_start": {
+				"type": "String",
+				"defaultValue": "2"
+			},
+			"until2_start": {
+				"type": "String",
+				"defaultValue": "11"
+			},
+			"until2_end": {
+				"type": "String",
+				"defaultValue": "20"
+			},
+			"until1_temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"until2_temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"until3_start": {
+				"type": "String",
+				"defaultValue": "21"
+			},
+			"until3_end": {
+				"type": "String",
+				"defaultValue": "30"
+			},
+			"until3_temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"until4_start": {
+				"type": "String",
+				"defaultValue": "31"
+			},
+			"until4_end": {
+				"type": "String",
+				"defaultValue": "40"
+			},
+			"until4_temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"batchSize": {
+				"type": "String",
+				"defaultValue": "100"
+			}
+		},
+		"folder": {
+			"name": "BlackOps to Coveo Full Load Pipelines"
+		},
+		"annotations": []
+	}
+}

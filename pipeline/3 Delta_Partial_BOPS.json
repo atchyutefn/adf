@@ -1,0 +1,181 @@
+{
+	"name": "3 Delta_Partial_BOPS",
+	"properties": {
+		"activities": [
+			{
+				"name": "SP Day1 TO Day0 BOPS",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_Bops_Partial_Delta]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Update New Delete records Preparation",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "SP Day1 TO Day0 BOPS",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_Json_bops_Partial_Delta_Update_Add]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Get rows count Add Update Delete",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Update New Delete records Preparation",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "select count(*) cnt from stg.coveopushdata_json_bops_partial_Delta_update_Add",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "destination_BlackOps1",
+						"type": "DatasetReference"
+					}
+				}
+			},
+			{
+				"name": "If Condition1",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Get rows count Add Update Delete",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(int(activity('Get rows count Add Update Delete').output.firstRow.cnt),0)",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Call BOPS push",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "3 1 Delta_Partial_BOPS_Push_call",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"OrganizationID": {
+										"value": "@pipeline().parameters.OrganizationID",
+										"type": "Expression"
+									},
+									"SourceID": {
+										"value": "@pipeline().parameters.SourceID",
+										"type": "Expression"
+									},
+									"BearerKey": {
+										"value": "@pipeline().parameters.BearerKey",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					],
+					"ifTrueActivities": [
+						{
+							"name": "Wait1",
+							"type": "Wait",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": 1
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"OrganizationID": {
+				"type": "string",
+				"defaultValue": "blackwoodsnonproduction18ywd51dd"
+			},
+			"SourceID": {
+				"type": "string",
+				"defaultValue": "wfprngzh3psutpsinc7po7sl4u"
+			},
+			"BearerKey": {
+				"type": "string",
+				"defaultValue": "xxe4ddf465-208c-4042-951f-6a4e4339fa46"
+			}
+		},
+		"variables": {
+			"Stream1": {
+				"type": "String"
+			},
+			"Stream1_End": {
+				"type": "String"
+			},
+			"Stream1_Temp": {
+				"type": "String"
+			},
+			"empty_body": {
+				"type": "String",
+				"defaultValue": "{}"
+			}
+		},
+		"folder": {
+			"name": "BlackOps to Coveo Delta Load Pipelines"
+		},
+		"annotations": []
+	}
+}

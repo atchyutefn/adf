@@ -1,0 +1,135 @@
+{
+	"name": "5 BlackOps_Coveo_Data_Reconciliation",
+	"properties": {
+		"activities": [
+			{
+				"name": "Script1",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "select count(*) wo_count           from [stg].[CoveoPushData_Json_WO_CSP_CNT_Day1]\nselect count(*) bpart_count       from [stg].[CoveoPushData_Json_BPart_Delta_Day1]\nselect count(*) cnt_count           from [stg].[coveopushdata_json_cnt_partial_delta_day1]\nselect count(*) bops_count        from [stg].[CoveoPushData_Json_Bops_Partial_Delta_Day1]\nselect count(*) cnt_count_bpart from [stg].[CoveoPushData_Json_BPart_Delta_Day1]\n     where SUBSTRING(jsonstring,CHARINDEX('ec_contracted_for_cus',jsonstring),25) <> 'ec_contracted_for_cus\":[]'\n\nselect count(*) wo_update from [stg].[CoveoPushData_Json_WO_CSP_CNT_Delta_Update]\nselect count(*) wo_add from [stg].[CoveoPushData_Json_WO_CSP_CNT_Delta_Add]\nselect count(*) wo_delete from [stg].[CoveoPushData_Json_WO_CSP_CNT_Delta_Delete]\n\nSELECT COUNT(*) Bpart_update FROM [stg].[CoveoPushData_Json_BPart_Delta_Add_Update]  WHERE delta_type='U'\nSELECT COUNT(*) Bpart_add FROM [stg].[CoveoPushData_Json_BPart_Delta_Add_Update]  WHERE delta_type='A'\nSELECT count(*) Bpart_delete FROM [stg].[CoveoPushData_Json_BPart_Delta_Delete]\n\nSELECT COUNT(*) CNT_update  FROM [stg].[CoveoPushData_Json_cnt_partial_Delta_Update_Add] WHERE delta_type='U'\nSELECT COUNT(*) CNT_ADD     FROM [stg].[CoveoPushData_Json_cnt_partial_Delta_Update_Add] WHERE delta_type='A'\nSELECT COUNT(*) CNT_DELETE  FROM [stg].[CoveoPushData_Json_cnt_partial_Delta_Update_Add] WHERE delta_type='D'\n\nSELECT COUNT(*) bops_update  FROM [STG].[CoveoPushData_Json_bops_Partial_Delta_Update_Add] WHERE delta_type='U'\nSELECT COUNT(*) bops_ADD     FROM [STG].[CoveoPushData_Json_bops_Partial_Delta_Update_Add] WHERE delta_type='A'\nSELECT COUNT(*) bops_DELETE  FROM [STG].[CoveoPushData_Json_bops_Partial_Delta_Update_Add] WHERE delta_type='D'"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "Script2",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "Script1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": {
+								"value": "INSERT INTO stg.BlackOps_Coveo_data_reconciliation(BlackOps_wo_CNT_BOPS,\n Blackops_Bpart ,\n Blackops_cnt,\n Blackops_bops,\n Blackops_cnt_bpart,\n Created_date,\n Blackops_wo_update,\n Blackops_wo_add,\n Blackops_wo_delete,\nBlackops_bpart_update,\nBlackops_bpart_add,\nBlackops_bpart_delete,\nBlackops_cnt_update,\nBlackops_cnt_add,\nBlackops_cnt_delete,\nBlackops_bops_update,\nBlackops_bops_add,\nBlackops_bops_delete\n )\nvalues( @{activity('Script1').output.resultSets[0].rows[0].wo_count},\n        @{activity('Script1').output.resultSets[1].rows[0].bpart_count},\n        @{activity('Script1').output.resultSets[2].rows[0].cnt_count},        \n        @{activity('Script1').output.resultSets[3].rows[0].bops_count},\n        @{activity('Script1').output.resultSets[4].rows[0].cnt_count_bpart},\n        getdate(),\n        @{activity('Script1').output.resultSets[5].rows[0].wo_update},\n        @{activity('Script1').output.resultSets[6].rows[0].wo_add},\n        @{activity('Script1').output.resultSets[7].rows[0].wo_delete},        \n        @{activity('Script1').output.resultSets[8].rows[0].Bpart_update},\n        @{activity('Script1').output.resultSets[9].rows[0].Bpart_add},\n        @{activity('Script1').output.resultSets[10].rows[0].Bpart_delete},\n        @{activity('Script1').output.resultSets[11].rows[0].cnt_update},\n        @{activity('Script1').output.resultSets[12].rows[0].cnt_add},        \n        @{activity('Script1').output.resultSets[13].rows[0].cnt_delete},\n        @{activity('Script1').output.resultSets[14].rows[0].bops_update},\n        @{activity('Script1').output.resultSets[15].rows[0].bops_add},                       \n        @{activity('Script1').output.resultSets[16].rows[0].bops_delete}                               \n)",
+								"type": "Expression"
+							}
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "Script3",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "select count(*) stibo_parts from dbo.Stibo_Parts\n\nselect count(*) vendorparts from dbo.VendorParts\n\nselect count(*) vendorparts_attributespivot from dbo.vendorparts_attributespivot\n\nselect count(*) vendorparts_assetattributes from dbo.vendorparts_assetattributes\n\nselect count(*) customer_specific_parts from dbo.customer_specific_parts\n\nSELECT count(*) contracted_items from dbo.contracted_items\n\nSELECT count(*) customer_lookup from dbo.customer_lookup\n\nSELECT count(*) stock_on_hand from dbo.stock_on_hand\n\nSELECT count(*) BpartsDetails from stg.BpartsDetails\n\nSELECT count(*) codingline from dbo.codingline\n\nSELECT count(*) Vendor_Contact from dbo.Vendor_Contact\n\nSELECT COUNT(*) Vendor_Contact_Boomi FROM DBO.Vendor_Contact_Boomi\n\nSELECT COUNT(*) ecatalogue from dbo.ecatalogue\n\nselect count(*) DimProduct from dbo.DimProduct\n\nselect count(*) WebHierarchy_Attributes from dbo.WebHierarchy_Attributes"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "Script4",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "Script3",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": {
+								"value": "INSERT INTO [stg].[NDW_Blackops_Data_Reconciliation](\n[created_date]\n      ,[stibo_parts]\n      ,[vendorparts]\n      ,[vendorparts_attributespivot]\n      ,[vendorparts_assetattributes]\n      ,[customer_specific_parts]\n      ,[contracted_items]\n      ,[customer_lookup]\n      ,[stock_on_hand]\n      ,[BpartsDetails]\n      ,[codingline]\n      ,[Vendor_Contact]\n      ,[Vendor_Contact_Boomi]\n      ,[ecatalogue]\n      ,[DimProduct]\n      ,[WebHierarchy_Attributes]\n)\nvalues( getdate(),\n        @{activity('Script3').output.resultSets[0].rows[0].stibo_parts},\n        @{activity('Script3').output.resultSets[1].rows[0].vendorparts},\n        @{activity('Script3').output.resultSets[2].rows[0].vendorparts_attributespivot},        \n        @{activity('Script3').output.resultSets[3].rows[0].vendorparts_assetattributes},\n        @{activity('Script3').output.resultSets[4].rows[0].customer_specific_parts},\n        @{activity('Script3').output.resultSets[5].rows[0].contracted_items},\n        @{activity('Script3').output.resultSets[6].rows[0].customer_lookup},\n        @{activity('Script3').output.resultSets[7].rows[0].stock_on_hand},        \n        @{activity('Script3').output.resultSets[8].rows[0].BpartsDetails},\n        @{activity('Script3').output.resultSets[9].rows[0].codingline},\n        @{activity('Script3').output.resultSets[10].rows[0].Vendor_Contact},\n        @{activity('Script3').output.resultSets[11].rows[0].Vendor_Contact_Boomi},\n        @{activity('Script3').output.resultSets[12].rows[0].ecatalogue},        \n        @{activity('Script3').output.resultSets[13].rows[0].DimProduct},\n        @{activity('Script3').output.resultSets[14].rows[0].WebHierarchy_Attributes}                         \n)",
+								"type": "Expression"
+							}
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			}
+		],
+		"folder": {
+			"name": "BlackOps to Coveo Delta Load Pipelines"
+		},
+		"annotations": []
+	}
+}

@@ -1,0 +1,233 @@
+{
+	"name": "2 4 2 Delta_Bpart_Delete",
+	"properties": {
+		"activities": [
+			{
+				"name": "Create S3 File Container",
+				"type": "WebActivity",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": {
+						"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/files?useVirtualHostedStyleUrl=true",
+						"type": "Expression"
+					},
+					"method": "POST",
+					"headers": {
+						"Content-Type": "application/json",
+						"Accept": "application/json",
+						"Authorization": {
+							"value": "Bearer @{pipeline().parameters.BearerKey}",
+							"type": "Expression"
+						}
+					},
+					"body": {
+						"value": "@variables('empty_body')",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Push Data To Container",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Lookup grouping",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 2,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": {
+						"value": "@activity('Create S3 File Container').output.uploadURI",
+						"type": "Expression"
+					},
+					"method": "PUT",
+					"headers": {
+						"x-amz-server-side-encryption": "AES256",
+						"Content-Type": "application/octet-stream"
+					},
+					"body": {
+						"value": "@concat('{\"delete\": [',activity('Lookup grouping').output.FirstRow.JSONSTRING,']}')",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Push Container to Stream",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Push Data To Container",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": {
+						"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/sources/@{pipeline().parameters.OrganizationID}-@{pipeline().parameters.SourceID}/stream/update?fileId=@{activity('Create S3 File Container').output.fileid}",
+						"type": "Expression"
+					},
+					"method": "PUT",
+					"headers": {
+						"Authorization": {
+							"value": "Bearer @{pipeline().parameters.BearerKey}",
+							"type": "Expression"
+						},
+						"Content-Type": "application/json"
+					},
+					"body": {
+						"value": "@variables('empty_body')",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Lookup grouping",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Create S3 File Container",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "DECLARE @json nvarchar(max);\nSELECT  @json = coalesce(@json + ','+JSONSTRING,JSONSTRING) FROM\n(select  JSONSTRING \nfrom stg.coveopushdata_json_BPart_Delta_Delete\n ) a\nselect @json as Jsonstring",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "destination_BlackOps1",
+						"type": "DatasetReference"
+					}
+				}
+			},
+			{
+				"name": "Intial Load woCspCnt Update Log",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Push Container to Stream",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[CoveoPushData_bpart_Delta_delete_log]",
+					"storedProcedureParameters": {
+						"AWSContainerFileID": {
+							"value": null,
+							"type": "String"
+						},
+						"AWSUploadURI": {
+							"value": {
+								"value": "@activity('Create S3 File Container').output.uploaduri",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BAtchNoStart": {
+							"value": "1",
+							"type": "Int32"
+						},
+						"PipelineID": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ErrorMessage": {
+							"value": {
+								"value": "@activity('Push Container to Stream').Error?.Message",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			}
+		],
+		"parameters": {
+			"OrganizationID": {
+				"type": "string",
+				"defaultValue": "blackwoodsnonproduction1rel4b8ue"
+			},
+			"SourceID": {
+				"type": "string",
+				"defaultValue": "xqzjpr66aahsdkjh6go4dycoca"
+			},
+			"BearerKey": {
+				"type": "string",
+				"defaultValue": "xxfad91265-b288-47b9-a932-2145f82f1611"
+			}
+		},
+		"variables": {
+			"count": {
+				"type": "String"
+			},
+			"empty_body": {
+				"type": "String",
+				"defaultValue": "{}"
+			}
+		},
+		"folder": {
+			"name": "BlackOps to Coveo Delta Load Pipelines"
+		},
+		"annotations": []
+	}
+}

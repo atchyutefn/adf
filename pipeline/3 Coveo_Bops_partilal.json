@@ -1,0 +1,1047 @@
+{
+	"name": "3 Coveo_Bops_partilal",
+	"properties": {
+		"activities": [
+			{
+				"name": "Until_Stream1",
+				"type": "Until",
+				"dependsOn": [
+					{
+						"activity": "Set Stream1_End",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(int(variables('Stream1')), int(variables('Stream1_End')))",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Coveo Stream Chunk Push 1",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Lookup_Bops 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Coveo Stream Open 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "@activity('Coveo Stream Open 1').output.uploadURI",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"x-amz-server-side-encryption": "AES256",
+									"Content-Type": "application/octet-stream"
+								},
+								"body": {
+									"value": "@concat('{\"partialUpdate\": [',activity('Lookup_Bops 1').output.FirstRow.Js1,']}')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Lookup_Bops 1",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "SELECT  Jsonstring as js1 FROM @{variables('Table_name')} \nwhere BatchNo=@{int(variables('Stream1'))}",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "destination_BlackOps",
+									"type": "DatasetReference"
+								}
+							}
+						},
+						{
+							"name": "Stream1 var",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "SP_Update_Stream1_Log",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Coveo Push 1",
+									"dependencyConditions": [
+										"Completed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "Stream1_Temp",
+								"value": {
+									"value": "@variables('Stream1')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Stream1 varSet",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Stream1 var",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "Stream1",
+								"value": {
+									"value": "@{add(int(variables('Stream1_Temp')),1)}",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "SP_Update_Stream1_Log",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Coveo Stream Chunk Push 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[Update_coveopushdata_json_Bops_stream]",
+								"storedProcedureParameters": {
+									"AWSContainerFileID": {
+										"value": {
+											"value": "@activity('Coveo Stream Open 1').output.fileId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"AWSUploadURI": {
+										"value": {
+											"value": "@activity('Coveo Stream Open 1').output.Uploaduri",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BAtchNoStart": {
+										"value": {
+											"value": "@{int(variables('Stream1'))}",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									},
+									"PipelineID": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "AzureSqlDatabase1",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Coveo Stream Open 1",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/files?useVirtualHostedStyleUrl=true",
+									"type": "Expression"
+								},
+								"method": "POST",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}\n",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json",
+									"Accept": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Coveo Push 1",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Coveo Stream Chunk Push 1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/sources/@{pipeline().parameters.OrganizationID}-@{pipeline().parameters.SourceID}/stream/update?fileId=@{activity('Coveo Stream Open 1').output.fileid}",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"timeout": "7.00:00:00"
+				}
+			},
+			{
+				"name": "Until_Stream2",
+				"type": "Until",
+				"dependsOn": [
+					{
+						"activity": "Set Stream2_End",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(int(variables('Stream2')), int(variables('Stream2_End')))",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Coveo Stream Chunk Push 2",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Lookup_Bops 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Coveo Stream Open 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "@activity('Coveo Stream Open 2').output.uploadURI",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"x-amz-server-side-encryption": "AES256",
+									"Content-Type": "application/octet-stream"
+								},
+								"body": {
+									"value": "@concat('{\"partialUpdate\": [',activity('Lookup_bops 2').output.FirstRow.Js2,']}')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Lookup_Bops 2",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "SELECT  Jsonstring as js2 FROM @{variables('Table_name')} \nwhere BatchNo=@{int(variables('Stream2'))}",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "destination_BlackOps",
+									"type": "DatasetReference"
+								}
+							}
+						},
+						{
+							"name": "Stream2 var",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "SP_Update_Stream2_Log",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Coveo Push 2",
+									"dependencyConditions": [
+										"Completed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "Stream2_Temp",
+								"value": {
+									"value": "@variables('Stream2')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Stream2 varSet",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Stream2 var",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "Stream2",
+								"value": {
+									"value": "@{add(int(variables('Stream2_Temp')),1)}",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "SP_Update_Stream2_Log",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Coveo Stream Chunk Push 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[Update_coveopushdata_json_Bops_stream]",
+								"storedProcedureParameters": {
+									"AWSContainerFileID": {
+										"value": {
+											"value": "@activity('Coveo Stream Open 2').output.fileId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"AWSUploadURI": {
+										"value": {
+											"value": "@activity('Coveo Stream Open 2').output.Uploaduri",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BAtchNoStart": {
+										"value": {
+											"value": "@{int(variables('Stream2'))}",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									},
+									"PipelineID": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "AzureSqlDatabase1",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Coveo Stream Open 2",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/files?useVirtualHostedStyleUrl=true",
+									"type": "Expression"
+								},
+								"method": "POST",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json",
+									"Accept": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Coveo Push 2",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Coveo Stream Chunk Push 2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/sources/@{pipeline().parameters.OrganizationID}-@{pipeline().parameters.SourceID}/stream/update?fileId=@{activity('Coveo Stream Open 2').output.fileid}",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"timeout": "7.00:00:00"
+				}
+			},
+			{
+				"name": "Until_Stream3",
+				"type": "Until",
+				"dependsOn": [
+					{
+						"activity": "Set Stream3_End",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(int(variables('Stream3')), int(variables('Stream3_End')))",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Coveo Stream Chunk Push 3",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Lookup_Bops 3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Coveo Stream Open 3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "@activity('Coveo Stream Open 3').output.uploadURI",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"x-amz-server-side-encryption": "AES256",
+									"Content-Type": "application/octet-stream"
+								},
+								"body": {
+									"value": "@concat('{\"partialUpdate\": [',activity('Lookup_Bops 3').output.FirstRow.Js3,']}')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Lookup_Bops 3",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "SELECT  Jsonstring as js3 FROM @{variables('Table_name')} \nwhere BatchNo=@{int(variables('Stream3'))}",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "destination_BlackOps",
+									"type": "DatasetReference"
+								}
+							}
+						},
+						{
+							"name": "Stream3 var",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "SP_Update_Stream3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Coveo Push 3",
+									"dependencyConditions": [
+										"Completed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "Stream3_Temp",
+								"value": {
+									"value": "@variables('Stream3')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Stream3 varSet",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Stream3 var",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "Stream3",
+								"value": {
+									"value": "@{add(int(variables('Stream3_Temp')),1)}",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "SP_Update_Stream3",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Coveo Stream Chunk Push 3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[Update_coveopushdata_json_Bops_stream]",
+								"storedProcedureParameters": {
+									"AWSContainerFileID": {
+										"value": {
+											"value": "@activity('Coveo Stream Open 3').output.fileId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"AWSUploadURI": {
+										"value": {
+											"value": "@activity('Coveo Stream Open 3').output.Uploaduri",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BAtchNoStart": {
+										"value": {
+											"value": "@{int(variables('Stream3'))}",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									},
+									"PipelineID": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "AzureSqlDatabase1",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Coveo Stream Open 3",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/files?useVirtualHostedStyleUrl=true",
+									"type": "Expression"
+								},
+								"method": "POST",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json",
+									"Accept": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Coveo Push 3",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Coveo Stream Chunk Push 3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "https://api-au.cloud.coveo.com/push/v1/organizations/@{pipeline().parameters.OrganizationID}/sources/@{pipeline().parameters.OrganizationID}-@{pipeline().parameters.SourceID}/stream/update?fileId=@{activity('Coveo Stream Open 3').output.fileid}",
+									"type": "Expression"
+								},
+								"method": "PUT",
+								"headers": {
+									"Authorization": {
+										"value": "Bearer @{pipeline().parameters.BearerKey}",
+										"type": "Expression"
+									},
+									"Content-Type": "application/json"
+								},
+								"body": {
+									"value": "@variables('empty_body')",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"timeout": "7.00:00:00"
+				}
+			},
+			{
+				"name": "Set Stream1",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Lookup_cnt",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "Stream1",
+					"value": {
+						"value": "1",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Lookup_cnt",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT  max(batchno) maxBatchno  FROM stg.Coveopushdata_json_Bops_lookup",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "destination_BlackOps",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "Set Stream1_End",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set Stream1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set Temp",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "Stream1_End",
+					"value": {
+						"value": "@{sub(add(int(variables('Stream1')),int(variables('Temp'))),1)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set Temp",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Lookup_cnt",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "Temp",
+					"value": {
+						"value": "@{div(activity('Lookup_cnt').output.value[0].maxBatchno,3)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set Stream2",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set Stream1_End",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "Stream2",
+					"value": {
+						"value": "@{add(int(variables('Stream1_End')),1)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set Stream2_End",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set Stream2",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "Stream2_End",
+					"value": {
+						"value": "@{sub(add(int(variables('Stream2')),int(variables('Temp'))),1)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set Stream3",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set Stream2_End",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "Stream3",
+					"value": {
+						"value": "@{add(int(variables('Stream2_End')),1)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set Stream3_End",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set Stream3",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "Stream3_End",
+					"value": {
+						"value": "@{sub(add(int(variables('Stream3')),int(variables('Temp'))),1)}",
+						"type": "Expression"
+					}
+				}
+			}
+		],
+		"parameters": {
+			"OrganizationID": {
+				"type": "string"
+			},
+			"SourceID": {
+				"type": "string"
+			},
+			"BearerKey": {
+				"type": "string"
+			}
+		},
+		"variables": {
+			"Stream1": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"Stream1_Temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"Stream1_End": {
+				"type": "String",
+				"defaultValue": "100"
+			},
+			"Stream2": {
+				"type": "String",
+				"defaultValue": "101"
+			},
+			"Stream2_Temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"Stream2_End": {
+				"type": "String",
+				"defaultValue": "200"
+			},
+			"Stream3": {
+				"type": "String",
+				"defaultValue": "201"
+			},
+			"Stream3_Temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"Stream3_End": {
+				"type": "String",
+				"defaultValue": "300"
+			},
+			"empty_body": {
+				"type": "String",
+				"defaultValue": "{}"
+			},
+			"Table_name": {
+				"type": "String",
+				"defaultValue": "stg.CoveoPushData_json_Bops_lookup"
+			},
+			"Temp": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"Source": {
+				"type": "String",
+				"defaultValue": "xqzjpr66aahsdkjh6go4dycoca"
+			},
+			"id": {
+				"type": "String",
+				"defaultValue": "3"
+			}
+		},
+		"folder": {
+			"name": "BlackOps to Coveo Full Load Pipelines"
+		},
+		"annotations": []
+	}
+}
