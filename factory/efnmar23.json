@@ -1,0 +1,9 @@
+{
+	"name": "efnmar23",
+	"location": "eastus",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "4c6a6a82-8d93-4524-9367-c6be4c19f6cb",
+		"tenantId": "03568792-96fd-4108-8864-0806f98d9205"
+	}
+}
