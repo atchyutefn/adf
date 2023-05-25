@@ -1,5 +1,13 @@
 {
 	"name": "efnmar23",
+	"properties": {
+		"globalParameters": {
+			"dbname": {
+				"type": "string",
+				"value": "efndatabase"
+			}
+		}
+	},
 	"location": "eastus",
 	"identity": {
 		"type": "SystemAssigned",
