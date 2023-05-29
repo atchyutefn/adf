@@ -1,0 +1,221 @@
+{
+	"name": "pipeline1",
+	"properties": {
+		"activities": [
+			{
+				"name": "Get source file list",
+				"type": "GetMetadata",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataset": {
+						"referenceName": "ds_source_blob",
+						"type": "DatasetReference"
+					},
+					"fieldList": [
+						"childItems"
+					],
+					"storeSettings": {
+						"type": "AzureBlobStorageReadSettings",
+						"recursive": true,
+						"enablePartitionDiscovery": false
+					},
+					"formatSettings": {
+						"type": "DelimitedTextReadSettings"
+					}
+				}
+			},
+			{
+				"name": "Get destination file list",
+				"type": "GetMetadata",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataset": {
+						"referenceName": "ds_destination_blob",
+						"type": "DatasetReference"
+					},
+					"fieldList": [
+						"childItems"
+					],
+					"storeSettings": {
+						"type": "AzureBlobStorageReadSettings",
+						"recursive": true,
+						"enablePartitionDiscovery": false
+					},
+					"formatSettings": {
+						"type": "DelimitedTextReadSettings"
+					}
+				}
+			},
+			{
+				"name": "No of files in source",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Get source file list",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "No_Of_Soruce_Files",
+					"value": {
+						"value": "@{length(activity('Get source file list').output.childItems)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "No of files in Destination",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Get destination file list",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "No_Of_Destination_Files",
+					"value": {
+						"value": "@{length(activity('Get destination file list').output.childItems)}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "No of files in Missed",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "No of files in Destination",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "No of files in source",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "No_of_Files_Missed",
+					"value": {
+						"value": "@{sub(int(variables('No_Of_Soruce_Files')),int(variables('No_Of_Destination_Files')) )}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "If Condition1",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "No of files in Missed",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(int(variables('No_of_Files_Missed')),0)",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Filter1",
+							"type": "Filter",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"items": {
+									"value": "@activity('Get source file list').output.childItems",
+									"type": "Expression"
+								},
+								"condition": {
+									"value": "@not(contains(activity('Get destination file list').output.childItems,item()))",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Execute Pipeline1",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Filter1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "pipeline2",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"MissedFileNames": {
+										"value": "@activity('Filter1').output.value",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					],
+					"ifTrueActivities": [
+						{
+							"name": "Wait1",
+							"type": "Wait",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": 1
+							}
+						}
+					]
+				}
+			}
+		],
+		"variables": {
+			"No_Of_Soruce_Files": {
+				"type": "String"
+			},
+			"No_Of_Destination_Files": {
+				"type": "String"
+			},
+			"No_of_Files_Missed": {
+				"type": "String"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2023-05-12T01:46:01Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}
